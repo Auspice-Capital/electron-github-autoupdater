@@ -91,13 +91,16 @@ var os_1 = __importDefault(require("os"));
 var path_1 = __importDefault(require("path"));
 var semver_1 = require("semver");
 // Platform validation
-var supportedPlatforms = ['darwin', 'win32'];
+var supportedPlatforms = ['darwin', 'win32', 'linux'];
 function assertPlatform(platform) {
     if (!supportedPlatforms.includes(platform)) {
-        throw new TypeError('Not a supported platform');
+        throw new TypeError("".concat(platform, " is not a supported platform"));
     }
 }
 var platform = os_1.default.platform();
+if (platform === 'linux') {
+    console.warn('WARNING: Linux is only enabled in electron-github-autoupdater for development purposes, updating does not work on linux');
+}
 assertPlatform(platform);
 if (!supportedPlatforms.includes(platform))
     throw new Error("Platform: ".concat(platform, " is not currently supported by electron-github-autoupdater"));
@@ -186,6 +189,10 @@ var ElectronGithubAutoUpdater = /** @class */ (function (_super) {
         _this._getPlatformConfig = function () {
             return {
                 win32: {
+                    requiredFiles: [/[^ ]*-full\.nupkg/gim, /RELEASES/],
+                    feedUrl: _this.downloadsDirectory,
+                },
+                linux: {
                     requiredFiles: [/[^ ]*-full\.nupkg/gim, /RELEASES/],
                     feedUrl: _this.downloadsDirectory,
                 },
@@ -403,7 +410,7 @@ var ElectronGithubAutoUpdater = /** @class */ (function (_super) {
             }
         };
         _this.checkForUpdates = function () { return __awaiter(_this, void 0, void 0, function () {
-            var latestRelease, latestVersion, cachedReleaseID, error_1;
+            var latestRelease, latestVersion, updateDetails, cachedReleaseID, error_1;
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
@@ -418,16 +425,17 @@ var ElectronGithubAutoUpdater = /** @class */ (function (_super) {
                     case 1:
                         latestRelease = _a.sent();
                         latestVersion = latestRelease.tag_name;
-                        if (!(0, semver_1.gte)(this.currentVersion, latestVersion)) return [3 /*break*/, 2];
-                        this.emit('update-not-available');
-                        return [2 /*return*/, false];
-                    case 2:
-                        this.emit('update-available', {
+                        updateDetails = {
                             releaseName: latestRelease.name,
                             releaseNotes: latestRelease.body || '',
                             releaseDate: new Date(latestRelease.published_at),
                             updateUrl: latestRelease.html_url,
-                        });
+                        };
+                        if (!(0, semver_1.gte)(this.currentVersion, latestVersion)) return [3 /*break*/, 2];
+                        this.emit('update-not-available');
+                        return [2 /*return*/, false];
+                    case 2:
+                        this.emit('update-available', updateDetails);
                         cachedReleaseID = this._getCachedReleaseId();
                         if (!(!cachedReleaseID || cachedReleaseID !== latestRelease.id)) return [3 /*break*/, 4];
                         this.clearCache();
@@ -445,7 +453,7 @@ var ElectronGithubAutoUpdater = /** @class */ (function (_super) {
                         return [2 /*return*/, true];
                     case 4:
                         if (electron_1.autoUpdater.getFeedURL() === this.platformConfig.feedUrl) {
-                            this.emit('update-downloaded');
+                            this.emit('update-downloaded', updateDetails);
                         }
                         else {
                             // Load the built in electron auto updater with the files we generated

@@ -1,10 +1,5 @@
 import axios from 'axios'
-import {
-  app,
-  autoUpdater as electronAutoUpdater,
-  BrowserWindow,
-  ipcMain
-} from 'electron'
+import { app, autoUpdater as electronAutoUpdater, BrowserWindow, ipcMain } from 'electron'
 import isDev from 'electron-is-dev'
 import EventEmitter from 'events'
 import fs from 'fs'
@@ -14,14 +9,19 @@ import { gte as semverGte, rcompare as semverCompare } from 'semver'
 import { GithubRelease, GithubReleaseAsset } from './types'
 
 // Platform validation
-const supportedPlatforms = ['darwin', 'win32'] as const
+const supportedPlatforms = ['darwin', 'win32', 'linux'] as const
 type SupportedPlatformType = typeof supportedPlatforms[number]
 function assertPlatform(platform: any): asserts platform is SupportedPlatformType {
   if (!supportedPlatforms.includes(platform)) {
-    throw new TypeError('Not a supported platform')
+    throw new TypeError(`${platform} is not a supported platform`)
   }
 }
 const platform = os.platform()
+if (platform === 'linux') {
+  console.warn(
+    'WARNING: Linux is only enabled in electron-github-autoupdater for development purposes, updating does not work on linux'
+  )
+}
 assertPlatform(platform)
 if (!supportedPlatforms.includes(platform))
   throw new Error(`Platform: ${platform} is not currently supported by electron-github-autoupdater`)
@@ -194,6 +194,10 @@ class ElectronGithubAutoUpdater extends EventEmitter {
   _getPlatformConfig = (): PlatformConfig => {
     return {
       win32: {
+        requiredFiles: [/[^ ]*-full\.nupkg/gim, /RELEASES/],
+        feedUrl: this.downloadsDirectory,
+      },
+      linux: {
         requiredFiles: [/[^ ]*-full\.nupkg/gim, /RELEASES/],
         feedUrl: this.downloadsDirectory,
       },
@@ -397,17 +401,17 @@ class ElectronGithubAutoUpdater extends EventEmitter {
       // Get the latest release and its version number
       const latestRelease = await this.getLatestRelease()
       const latestVersion = latestRelease.tag_name
-
+      const updateDetails = {
+        releaseName: latestRelease.name,
+        releaseNotes: latestRelease.body || '',
+        releaseDate: new Date(latestRelease.published_at),
+        updateUrl: latestRelease.html_url,
+      }
       if (semverGte(this.currentVersion, latestVersion)) {
         this.emit('update-not-available')
-        return false;
+        return false
       } else {
-        this.emit('update-available', {
-          releaseName: latestRelease.name,
-          releaseNotes: latestRelease.body || '',
-          releaseDate: new Date(latestRelease.published_at),
-          updateUrl: latestRelease.html_url,
-        })
+        this.emit('update-available', updateDetails)
 
         // Check if release files are already downloaded/cached
         const cachedReleaseID = this._getCachedReleaseId()
@@ -422,16 +426,16 @@ class ElectronGithubAutoUpdater extends EventEmitter {
           this._loadElectronAutoUpdater(latestRelease)
           // Use the built in electron auto updater to install the update
           this._installDownloadedUpdate()
-          return true;
+          return true
         } else {
           if (electronAutoUpdater.getFeedURL() === this.platformConfig.feedUrl) {
-            this.emit('update-downloaded')
+            this.emit('update-downloaded', updateDetails)
           } else {
             // Load the built in electron auto updater with the files we generated
             this._loadElectronAutoUpdater(latestRelease)
             // Use the built in electron auto updater to install the update
             this._installDownloadedUpdate()
-            return true;
+            return true
           }
         }
       }

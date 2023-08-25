@@ -1,7 +1,7 @@
 /// <reference types="node" />
 import EventEmitter from 'events';
 import { GithubRelease } from './types';
-declare const supportedPlatforms: readonly ["darwin", "win32"];
+declare const supportedPlatforms: readonly ["darwin", "win32", "linux"];
 export declare const channelName = "ElectronAutoUpdater";
 declare const electronAutoUpdaterEventTypes: readonly ["error", "checking-for-update", "update-available", "update-not-available", "update-downloaded", "before-quit-for-update"];
 export declare type ElectronAutoUpdaterEventType = typeof electronAutoUpdaterEventTypes[number];
