@@ -384,7 +384,6 @@ class ElectronGithubAutoUpdater extends EventEmitter {
       }
 
       this._initCache()
-      this.emit('update-not-available')
     } catch (e) {
       this._emitError(e)
     }

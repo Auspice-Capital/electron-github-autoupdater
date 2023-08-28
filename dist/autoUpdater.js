@@ -405,7 +405,6 @@ var ElectronGithubAutoUpdater = /** @class */ (function (_super) {
                     fs_1.default.unlinkSync(_this.cacheFilePath);
                 }
                 _this._initCache();
-                _this.emit('update-not-available');
             }
             catch (e) {
                 _this._emitError(e);
