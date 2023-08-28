@@ -1,6 +1,6 @@
 /// <reference types="node" />
 import EventEmitter from 'events';
-import { GithubRelease } from './types';
+import { GithubRelease, GithubReleaseAsset } from './types';
 declare const supportedPlatforms: readonly ["darwin", "win32", "linux"];
 export declare const channelName = "ElectronAutoUpdater";
 declare const electronAutoUpdaterEventTypes: readonly ["error", "checking-for-update", "update-available", "update-not-available", "update-downloaded", "before-quit-for-update"];
@@ -54,12 +54,22 @@ declare class ElectronGithubAutoUpdater extends EventEmitter {
     _registerInterceptors: () => void;
     _getPlatformConfig: () => PlatformConfig;
     _getCachedReleaseId: () => number | null;
+    /**
+     * Gets all releases from github sorted by version number (most recent first)
+     */
+    getReleases(): Promise<GithubRelease[]>;
     getLatestRelease: () => Promise<GithubRelease>;
     _loadElectronAutoUpdater: (release: GithubRelease) => void;
     _installDownloadedUpdate: () => void;
     emit: (e: AutoUpdaterEventType, args?: any) => boolean;
-    downloadUpdateFromRelease: (release: GithubRelease) => Promise<void>;
+    /**
+     * Throws an error if the release is missing any of the required files for the
+     * current platform, otherwise returns the required assets
+     */
+    _getAssets: (release: GithubRelease) => GithubReleaseAsset[];
+    _downloadUpdateFromRelease: (release: GithubRelease) => Promise<void>;
     clearCache: () => void;
+    prepareUpdateFromRelease(release: GithubRelease): Promise<true | undefined>;
     checkForUpdates: () => Promise<boolean | undefined>;
     quitAndInstall: () => void;
     destroy: () => void;

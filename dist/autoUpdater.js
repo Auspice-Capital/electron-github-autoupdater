@@ -214,31 +214,24 @@ var ElectronGithubAutoUpdater = /** @class */ (function (_super) {
         };
         // Gets the latest release from github
         _this.getLatestRelease = function () { return __awaiter(_this, void 0, void 0, function () {
-            var response, releases, matchedRelease;
+            var releases;
             return __generator(this, function (_a) {
                 switch (_a.label) {
-                    case 0: return [4 /*yield*/, axios_1.default.get("".concat(this.baseUrl, "/repos/").concat(this.owner, "/").concat(this.repo, "/releases?per_page=100"), {
-                            headers: this._headers,
-                        })];
+                    case 0:
+                        // If already checking, log an error
+                        if (this.lastEmit.type === 'checking-for-update') {
+                            throw new Error('Already checking for updates, cannot check again.');
+                        }
+                        // First emit that we are checking
+                        this.emit('checking-for-update');
+                        return [4 /*yield*/, this.getReleases()];
                     case 1:
-                        response = _a.sent();
-                        releases = response.data.filter(function (release) { return !release.draft; });
+                        releases = _a.sent();
                         if (releases.length === 0) {
                             throw new Error('No releases found');
                         }
-                        releases.sort(function (a, b) { return (0, semver_1.rcompare)(a.name, b.name); });
-                        if (this.allowPrerelease) {
-                            this.latestRelease = releases[0];
-                            return [2 /*return*/, releases[0]];
-                        }
-                        else {
-                            matchedRelease = releases.find(function (release) { return !release.prerelease; });
-                            if (!matchedRelease)
-                                throw new Error('No non-preproduction releases found');
-                            this.latestRelease = matchedRelease;
-                            return [2 /*return*/, matchedRelease];
-                        }
-                        return [2 /*return*/];
+                        this.latestRelease = releases[0];
+                        return [2 /*return*/, releases[0]];
                 }
             });
         }); };
@@ -286,25 +279,31 @@ var ElectronGithubAutoUpdater = /** @class */ (function (_super) {
                 return _super.prototype.emit.call(_this, e, args);
             }
         };
+        /**
+         * Throws an error if the release is missing any of the required files for the
+         * current platform, otherwise returns the required assets
+         */
+        _this._getAssets = function (release) {
+            return _this.platformConfig.requiredFiles.map(function (filePattern) {
+                var match = release.assets.find(function (asset) { return asset.name.match(filePattern); });
+                if (!match)
+                    throw new Error("Release is missing a required update file for current platform (".concat(platform, ")"));
+                else
+                    return match;
+            });
+        };
         // Downloads the required files for the current platform from the provided release
-        _this.downloadUpdateFromRelease = function (release) { return __awaiter(_this, void 0, void 0, function () {
-            var assets, totalSize_1, downloaded_1, lastEmitPercent_1, downloadFile, assets_1, assets_1_1, asset, e_1_1, e_2;
+        _this._downloadUpdateFromRelease = function (release) { return __awaiter(_this, void 0, void 0, function () {
+            var assets, totalSize, downloaded, lastEmitPercent, downloadFile, assets_1, assets_1_1, asset, e_1_1;
             var _this = this;
             var e_1, _a;
             return __generator(this, function (_b) {
                 switch (_b.label) {
                     case 0:
-                        _b.trys.push([0, 14, , 15]);
-                        assets = this.platformConfig.requiredFiles.map(function (filePattern) {
-                            var match = release.assets.find(function (asset) { return asset.name.match(filePattern); });
-                            if (!match)
-                                throw new Error("Release is missing a required update file for current platform (".concat(platform, ")"));
-                            else
-                                return match;
-                        });
-                        totalSize_1 = assets.reduce(function (prev, asset) { return (prev += asset.size); }, 0);
-                        downloaded_1 = 0;
-                        lastEmitPercent_1 = -1;
+                        assets = this._getAssets(release);
+                        totalSize = assets.reduce(function (prev, asset) { return (prev += asset.size); }, 0);
+                        downloaded = 0;
+                        lastEmitPercent = -1;
                         downloadFile = function (asset) {
                             return new Promise(function (resolve, reject) { return __awaiter(_this, void 0, void 0, function () {
                                 var outputPath, assetUrl, data, writer;
@@ -323,22 +322,22 @@ var ElectronGithubAutoUpdater = /** @class */ (function (_super) {
                                             writer = fs_1.default.createWriteStream(outputPath);
                                             // Emit a progress event when a chunk is downloaded
                                             data.on('data', function (chunk) {
-                                                downloaded_1 += chunk.length;
-                                                var percent = Math.round((downloaded_1 * 100) / totalSize_1);
+                                                downloaded += chunk.length;
+                                                var percent = Math.round((downloaded * 100) / totalSize);
                                                 // Only emit once the value is greater, to prevent TONS of IPC events
-                                                if (percent > lastEmitPercent_1) {
+                                                if (percent > lastEmitPercent) {
                                                     _this.emit('update-downloading', {
                                                         downloadStatus: {
-                                                            size: totalSize_1,
-                                                            progress: downloaded_1,
-                                                            percent: Math.round((downloaded_1 * 100) / totalSize_1),
+                                                            size: totalSize,
+                                                            progress: downloaded,
+                                                            percent: Math.round((downloaded * 100) / totalSize),
                                                         },
                                                         releaseName: release.name,
                                                         releaseNotes: release.body || '',
                                                         releaseDate: new Date(release.published_at),
                                                         updateUrl: release.html_url,
                                                     });
-                                                    lastEmitPercent_1 = percent;
+                                                    lastEmitPercent = percent;
                                                 }
                                             });
                                             // Pipe data into a writer to save it to the disk rather than keeping it in memory
@@ -384,12 +383,7 @@ var ElectronGithubAutoUpdater = /** @class */ (function (_super) {
                     case 12: return [7 /*endfinally*/];
                     case 13:
                         fs_1.default.writeFileSync(this.cacheFilePath, release.id.toString(), { encoding: 'utf-8' });
-                        return [3 /*break*/, 15];
-                    case 14:
-                        e_2 = _b.sent();
-                        this._emitError(e_2);
-                        return [3 /*break*/, 15];
-                    case 15: return [2 /*return*/];
+                        return [2 /*return*/];
                 }
             });
         }); };
@@ -411,65 +405,28 @@ var ElectronGithubAutoUpdater = /** @class */ (function (_super) {
             }
         };
         _this.checkForUpdates = function () { return __awaiter(_this, void 0, void 0, function () {
-            var latestRelease, latestVersion, updateDetails, cachedReleaseID, error_1;
+            var latestRelease, latestVersion, error_1;
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
-                        _a.trys.push([0, 6, , 7]);
-                        // If already checking, log an error
-                        if (this.lastEmit.type === 'checking-for-update') {
-                            throw new Error('Already checking for updates, cannot check again.');
-                        }
-                        // First emit that we are checking
-                        this.emit('checking-for-update');
+                        _a.trys.push([0, 2, , 3]);
                         return [4 /*yield*/, this.getLatestRelease()];
                     case 1:
                         latestRelease = _a.sent();
                         latestVersion = latestRelease.tag_name;
-                        updateDetails = {
-                            releaseName: latestRelease.name,
-                            releaseNotes: latestRelease.body || '',
-                            releaseDate: new Date(latestRelease.published_at),
-                            updateUrl: latestRelease.html_url,
-                        };
-                        if (!(0, semver_1.gte)(this.currentVersion, latestVersion)) return [3 /*break*/, 2];
-                        this.emit('update-not-available');
-                        return [2 /*return*/, false];
-                    case 2:
-                        this.emit('update-available', updateDetails);
-                        cachedReleaseID = this._getCachedReleaseId();
-                        if (!(!cachedReleaseID || cachedReleaseID !== latestRelease.id)) return [3 /*break*/, 4];
-                        this.clearCache();
-                        // Download the update files
-                        return [4 /*yield*/, this.downloadUpdateFromRelease(latestRelease)
-                            // Load the built in electron auto updater with the files we generated
-                        ];
-                    case 3:
-                        // Download the update files
-                        _a.sent();
-                        // Load the built in electron auto updater with the files we generated
-                        this._loadElectronAutoUpdater(latestRelease);
-                        // Use the built in electron auto updater to install the update
-                        this._installDownloadedUpdate();
-                        return [2 /*return*/, true];
-                    case 4:
-                        if (electron_1.autoUpdater.getFeedURL() === this.platformConfig.feedUrl) {
-                            this.emit('update-downloaded', updateDetails);
+                        if ((0, semver_1.gte)(this.currentVersion, latestVersion)) {
+                            this.emit('update-not-available');
+                            return [2 /*return*/, false];
                         }
                         else {
-                            // Load the built in electron auto updater with the files we generated
-                            this._loadElectronAutoUpdater(latestRelease);
-                            // Use the built in electron auto updater to install the update
-                            this._installDownloadedUpdate();
-                            return [2 /*return*/, true];
+                            return [2 /*return*/, this.prepareUpdateFromRelease(latestRelease)];
                         }
-                        _a.label = 5;
-                    case 5: return [3 /*break*/, 7];
-                    case 6:
+                        return [3 /*break*/, 3];
+                    case 2:
                         error_1 = _a.sent();
                         this._emitError(error_1);
-                        return [3 /*break*/, 7];
-                    case 7: return [2 /*return*/];
+                        return [3 /*break*/, 3];
+                    case 3: return [2 /*return*/];
                 }
             });
         }); };
@@ -519,6 +476,89 @@ var ElectronGithubAutoUpdater = /** @class */ (function (_super) {
     ElectronGithubAutoUpdater.prototype._emitError = function (error) {
         this.emit('error', error);
         console.error(error);
+    };
+    /**
+     * Gets all releases from github sorted by version number (most recent first)
+     */
+    ElectronGithubAutoUpdater.prototype.getReleases = function () {
+        return __awaiter(this, void 0, void 0, function () {
+            var response, validateAssets, releases;
+            var _this = this;
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0: return [4 /*yield*/, axios_1.default.get("".concat(this.baseUrl, "/repos/").concat(this.owner, "/").concat(this.repo, "/releases?per_page=100"), {
+                            headers: this._headers,
+                        })];
+                    case 1:
+                        response = _a.sent();
+                        validateAssets = function (release) {
+                            try {
+                                _this._getAssets(release);
+                                return true;
+                            }
+                            catch (error) {
+                                return false;
+                            }
+                        };
+                        releases = response.data.filter(function (release) {
+                            return !release.draft && (_this.allowPrerelease || !release.prerelease) && validateAssets(release);
+                        });
+                        releases.sort(function (a, b) { return (0, semver_1.rcompare)(a.name, b.name); });
+                        return [2 /*return*/, releases];
+                }
+            });
+        });
+    };
+    ElectronGithubAutoUpdater.prototype.prepareUpdateFromRelease = function (release) {
+        return __awaiter(this, void 0, void 0, function () {
+            var updateDetails, cachedReleaseID, error_2;
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0:
+                        _a.trys.push([0, 4, , 5]);
+                        updateDetails = {
+                            releaseName: release.name,
+                            releaseNotes: release.body || '',
+                            releaseDate: new Date(release.published_at),
+                            updateUrl: release.html_url,
+                        };
+                        this.emit('update-available', updateDetails);
+                        cachedReleaseID = this._getCachedReleaseId();
+                        if (!(!cachedReleaseID || cachedReleaseID !== release.id)) return [3 /*break*/, 2];
+                        this.clearCache();
+                        // Download the update files
+                        return [4 /*yield*/, this._downloadUpdateFromRelease(release)
+                            // Load the built in electron auto updater with the files we generated
+                        ];
+                    case 1:
+                        // Download the update files
+                        _a.sent();
+                        // Load the built in electron auto updater with the files we generated
+                        this._loadElectronAutoUpdater(release);
+                        // Use the built in electron auto updater to install the update
+                        this._installDownloadedUpdate();
+                        return [2 /*return*/, true];
+                    case 2:
+                        if (electron_1.autoUpdater.getFeedURL() === this.platformConfig.feedUrl) {
+                            this.emit('update-downloaded', updateDetails);
+                        }
+                        else {
+                            // Load the built in electron auto updater with the files we generated
+                            this._loadElectronAutoUpdater(release);
+                            // Use the built in electron auto updater to install the update
+                            this._installDownloadedUpdate();
+                            return [2 /*return*/, true];
+                        }
+                        _a.label = 3;
+                    case 3: return [3 /*break*/, 5];
+                    case 4:
+                        error_2 = _a.sent();
+                        this._emitError(error_2);
+                        return [3 /*break*/, 5];
+                    case 5: return [2 /*return*/];
+                }
+            });
+        });
     };
     return ElectronGithubAutoUpdater;
 }(events_1.default));
