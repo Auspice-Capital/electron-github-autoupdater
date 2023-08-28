@@ -129,35 +129,37 @@ class ElectronGithubAutoUpdater extends EventEmitter {
    **************************************************************************************************/
   // Adds listeners for IPC Events
   _registerIpcMethods = () => {
-    ipcMain.on(channelName, (event, method, args) => {
-      switch (method) {
-        case 'getStatus':
-          event.returnValue = { eventName: this.lastEmit.type, eventDetails: this.lastEmit.args }
-          break
-        case 'getVersion':
-          event.returnValue = this.currentVersion
-          break
-        default:
-          throw new Error(`No listener for ${method}`)
-      }
-    })
+    if (this.shouldForwardEvents) {
+      ipcMain.on(channelName, (event, method, args) => {
+        switch (method) {
+          case 'getStatus':
+            event.returnValue = { eventName: this.lastEmit.type, eventDetails: this.lastEmit.args }
+            break
+          case 'getVersion':
+            event.returnValue = this.currentVersion
+            break
+          default:
+            throw new Error(`No listener for ${method}`)
+        }
+      })
 
-    ipcMain.handle(channelName, async (event, method, args) => {
-      switch (method) {
-        case 'checkForUpdates':
-          return this.checkForUpdates()
-        case 'quitAndInstall':
-          this.quitAndInstall()
-          return true
-        case 'clearCache':
-          this.clearCache()
-          return true
-        case 'getLatestRelease':
-          return await this.getLatestRelease()
-        default:
-          throw new Error(`No listener for ${method}`)
-      }
-    })
+      ipcMain.handle(channelName, async (event, method, args) => {
+        switch (method) {
+          case 'checkForUpdates':
+            return this.checkForUpdates()
+          case 'quitAndInstall':
+            this.quitAndInstall()
+            return true
+          case 'clearCache':
+            this.clearCache()
+            return true
+          case 'getLatestRelease':
+            return await this.getLatestRelease()
+          default:
+            throw new Error(`No listener for ${method}`)
+        }
+      })
+    }
   }
 
   /**************************************************************************************************
@@ -177,17 +179,15 @@ class ElectronGithubAutoUpdater extends EventEmitter {
 
   // Intercept electron's autoUpdater events and forward to renderer
   _registerInterceptors = () => {
-    if (this.shouldForwardEvents) {
-      electronAutoUpdater.on('before-quit-for-update', () => this.emit('before-quit-for-update'))
-      electronAutoUpdater.on('update-available', () =>
-        this.emit('update-downloaded', {
-          releaseName: this.latestRelease?.name,
-          releaseNotes: this.latestRelease?.body,
-          releaseDate: this.latestRelease && new Date(this.latestRelease?.published_at),
-          updateUrl: this.latestRelease?.html_url,
-        })
-      )
-    }
+    electronAutoUpdater.on('before-quit-for-update', () => this.emit('before-quit-for-update'))
+    electronAutoUpdater.on('update-available', () => {
+      this.emit('update-downloaded', {
+        releaseName: this.latestRelease?.name,
+        releaseNotes: this.latestRelease?.body,
+        releaseDate: this.latestRelease && new Date(this.latestRelease?.published_at),
+        updateUrl: this.latestRelease?.html_url,
+      })
+    })
   }
 
   // Gets the config for the current platform: files to download, the "feedURL" for electron's autoUpdater

@@ -126,44 +126,46 @@ var ElectronGithubAutoUpdater = /** @class */ (function (_super) {
          **************************************************************************************************/
         // Adds listeners for IPC Events
         _this._registerIpcMethods = function () {
-            electron_1.ipcMain.on(exports.channelName, function (event, method, args) {
-                switch (method) {
-                    case 'getStatus':
-                        event.returnValue = { eventName: _this.lastEmit.type, eventDetails: _this.lastEmit.args };
-                        break;
-                    case 'getVersion':
-                        event.returnValue = _this.currentVersion;
-                        break;
-                    default:
-                        throw new Error("No listener for ".concat(method));
-                }
-            });
-            electron_1.ipcMain.handle(exports.channelName, function (event, method, args) { return __awaiter(_this, void 0, void 0, function () {
-                var _a;
-                return __generator(this, function (_b) {
-                    switch (_b.label) {
-                        case 0:
-                            _a = method;
-                            switch (_a) {
-                                case 'checkForUpdates': return [3 /*break*/, 1];
-                                case 'quitAndInstall': return [3 /*break*/, 2];
-                                case 'clearCache': return [3 /*break*/, 3];
-                                case 'getLatestRelease': return [3 /*break*/, 4];
-                            }
-                            return [3 /*break*/, 6];
-                        case 1: return [2 /*return*/, this.checkForUpdates()];
-                        case 2:
-                            this.quitAndInstall();
-                            return [2 /*return*/, true];
-                        case 3:
-                            this.clearCache();
-                            return [2 /*return*/, true];
-                        case 4: return [4 /*yield*/, this.getLatestRelease()];
-                        case 5: return [2 /*return*/, _b.sent()];
-                        case 6: throw new Error("No listener for ".concat(method));
+            if (_this.shouldForwardEvents) {
+                electron_1.ipcMain.on(exports.channelName, function (event, method, args) {
+                    switch (method) {
+                        case 'getStatus':
+                            event.returnValue = { eventName: _this.lastEmit.type, eventDetails: _this.lastEmit.args };
+                            break;
+                        case 'getVersion':
+                            event.returnValue = _this.currentVersion;
+                            break;
+                        default:
+                            throw new Error("No listener for ".concat(method));
                     }
                 });
-            }); });
+                electron_1.ipcMain.handle(exports.channelName, function (event, method, args) { return __awaiter(_this, void 0, void 0, function () {
+                    var _a;
+                    return __generator(this, function (_b) {
+                        switch (_b.label) {
+                            case 0:
+                                _a = method;
+                                switch (_a) {
+                                    case 'checkForUpdates': return [3 /*break*/, 1];
+                                    case 'quitAndInstall': return [3 /*break*/, 2];
+                                    case 'clearCache': return [3 /*break*/, 3];
+                                    case 'getLatestRelease': return [3 /*break*/, 4];
+                                }
+                                return [3 /*break*/, 6];
+                            case 1: return [2 /*return*/, this.checkForUpdates()];
+                            case 2:
+                                this.quitAndInstall();
+                                return [2 /*return*/, true];
+                            case 3:
+                                this.clearCache();
+                                return [2 /*return*/, true];
+                            case 4: return [4 /*yield*/, this.getLatestRelease()];
+                            case 5: return [2 /*return*/, _b.sent()];
+                            case 6: throw new Error("No listener for ".concat(method));
+                        }
+                    });
+                }); });
+            }
         };
         _this._initCache = function () {
             // Create temp dir if not exists
@@ -172,18 +174,16 @@ var ElectronGithubAutoUpdater = /** @class */ (function (_super) {
         };
         // Intercept electron's autoUpdater events and forward to renderer
         _this._registerInterceptors = function () {
-            if (_this.shouldForwardEvents) {
-                electron_1.autoUpdater.on('before-quit-for-update', function () { return _this.emit('before-quit-for-update'); });
-                electron_1.autoUpdater.on('update-available', function () {
-                    var _a, _b, _c, _d;
-                    return _this.emit('update-downloaded', {
-                        releaseName: (_a = _this.latestRelease) === null || _a === void 0 ? void 0 : _a.name,
-                        releaseNotes: (_b = _this.latestRelease) === null || _b === void 0 ? void 0 : _b.body,
-                        releaseDate: _this.latestRelease && new Date((_c = _this.latestRelease) === null || _c === void 0 ? void 0 : _c.published_at),
-                        updateUrl: (_d = _this.latestRelease) === null || _d === void 0 ? void 0 : _d.html_url,
-                    });
+            electron_1.autoUpdater.on('before-quit-for-update', function () { return _this.emit('before-quit-for-update'); });
+            electron_1.autoUpdater.on('update-available', function () {
+                var _a, _b, _c, _d;
+                _this.emit('update-downloaded', {
+                    releaseName: (_a = _this.latestRelease) === null || _a === void 0 ? void 0 : _a.name,
+                    releaseNotes: (_b = _this.latestRelease) === null || _b === void 0 ? void 0 : _b.body,
+                    releaseDate: _this.latestRelease && new Date((_c = _this.latestRelease) === null || _c === void 0 ? void 0 : _c.published_at),
+                    updateUrl: (_d = _this.latestRelease) === null || _d === void 0 ? void 0 : _d.html_url,
                 });
-            }
+            });
         };
         // Gets the config for the current platform: files to download, the "feedURL" for electron's autoUpdater
         _this._getPlatformConfig = function () {
