@@ -188,6 +188,8 @@ class ElectronGithubAutoUpdater extends EventEmitter {
         updateUrl: this.latestRelease?.html_url,
       })
     })
+    electronAutoUpdater.on('error', (error) => this._emitError(error))
+    electronAutoUpdater.on('update-not-available', () => this.emit('update-not-available'))
   }
 
   // Gets the config for the current platform: files to download, the "feedURL" for electron's autoUpdater

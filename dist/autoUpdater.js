@@ -184,6 +184,8 @@ var ElectronGithubAutoUpdater = /** @class */ (function (_super) {
                     updateUrl: (_d = _this.latestRelease) === null || _d === void 0 ? void 0 : _d.html_url,
                 });
             });
+            electron_1.autoUpdater.on('error', function (error) { return _this._emitError(error); });
+            electron_1.autoUpdater.on('update-not-available', function () { return _this.emit('update-not-available'); });
         };
         // Gets the config for the current platform: files to download, the "feedURL" for electron's autoUpdater
         _this._getPlatformConfig = function () {
