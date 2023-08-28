@@ -186,6 +186,7 @@ class ElectronGithubAutoUpdater extends EventEmitter {
         releaseNotes: this.latestRelease?.body,
         releaseDate: this.latestRelease && new Date(this.latestRelease?.published_at),
         updateUrl: this.latestRelease?.html_url,
+        prerelease: this.latestRelease?.prerelease,
       })
     })
     electronAutoUpdater.on('error', (error) => this._emitError(error))
@@ -416,6 +417,7 @@ class ElectronGithubAutoUpdater extends EventEmitter {
         releaseNotes: release.body || '',
         releaseDate: new Date(release.published_at),
         updateUrl: release.html_url,
+        prerelease: release.prerelease,
       }
       this.emit('update-available', updateDetails)
 

@@ -176,12 +176,13 @@ var ElectronGithubAutoUpdater = /** @class */ (function (_super) {
         _this._registerInterceptors = function () {
             electron_1.autoUpdater.on('before-quit-for-update', function () { return _this.emit('before-quit-for-update'); });
             electron_1.autoUpdater.on('update-available', function () {
-                var _a, _b, _c, _d;
+                var _a, _b, _c, _d, _e;
                 _this.emit('update-downloaded', {
                     releaseName: (_a = _this.latestRelease) === null || _a === void 0 ? void 0 : _a.name,
                     releaseNotes: (_b = _this.latestRelease) === null || _b === void 0 ? void 0 : _b.body,
                     releaseDate: _this.latestRelease && new Date((_c = _this.latestRelease) === null || _c === void 0 ? void 0 : _c.published_at),
                     updateUrl: (_d = _this.latestRelease) === null || _d === void 0 ? void 0 : _d.html_url,
+                    prerelease: (_e = _this.latestRelease) === null || _e === void 0 ? void 0 : _e.prerelease,
                 });
             });
             electron_1.autoUpdater.on('error', function (error) { return _this._emitError(error); });
@@ -521,6 +522,7 @@ var ElectronGithubAutoUpdater = /** @class */ (function (_super) {
                             releaseNotes: release.body || '',
                             releaseDate: new Date(release.published_at),
                             updateUrl: release.html_url,
+                            prerelease: release.prerelease,
                         };
                         this.emit('update-available', updateDetails);
                         cachedReleaseID = this._getCachedReleaseId();
