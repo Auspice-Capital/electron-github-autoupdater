@@ -436,10 +436,9 @@ var ElectronGithubAutoUpdater = /** @class */ (function (_super) {
                         latestVersion = latestRelease.tag_name;
                         if ((0, semver_1.gte)(this.currentVersion, latestVersion)) {
                             this.emit('update-not-available');
-                            return [2 /*return*/, false];
                         }
                         else {
-                            return [2 /*return*/, this.prepareUpdateFromRelease(latestRelease)];
+                            this.prepareUpdateFromRelease(latestRelease);
                         }
                         return [3 /*break*/, 3];
                     case 2:
@@ -536,6 +535,7 @@ var ElectronGithubAutoUpdater = /** @class */ (function (_super) {
                 switch (_a.label) {
                     case 0:
                         _a.trys.push([0, 4, , 5]);
+                        this.latestRelease = release;
                         updateDetails = {
                             releaseName: release.name,
                             releaseNotes: release.body || '',
@@ -558,20 +558,18 @@ var ElectronGithubAutoUpdater = /** @class */ (function (_super) {
                         this._loadElectronAutoUpdater();
                         // Use the built in electron auto updater to install the update
                         this._installDownloadedUpdate();
-                        return [2 /*return*/, true];
+                        return [3 /*break*/, 3];
                     case 2:
-                        if (electron_1.autoUpdater.getFeedURL() === this.platformConfig.feedUrl) {
-                            this.emit('update-downloaded', updateDetails);
-                        }
-                        else {
+                        if (electron_1.autoUpdater.getFeedURL() !== this.platformConfig.feedUrl) {
                             // Load the built in electron auto updater with the files we generated
                             this._loadElectronAutoUpdater();
                             // Use the built in electron auto updater to install the update
                             this._installDownloadedUpdate();
-                            return [2 /*return*/, true];
                         }
                         _a.label = 3;
-                    case 3: return [3 /*break*/, 5];
+                    case 3:
+                        this.emit('update-downloaded', updateDetails);
+                        return [3 /*break*/, 5];
                     case 4:
                         error_2 = _a.sent();
                         this._emitError(error_2);

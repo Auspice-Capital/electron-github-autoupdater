@@ -69,8 +69,8 @@ declare class ElectronGithubAutoUpdater extends EventEmitter {
     _getAssets: (release: GithubRelease) => GithubReleaseAsset[];
     _downloadUpdateFromRelease: (release: GithubRelease) => Promise<void>;
     clearCache: () => void;
-    prepareUpdateFromRelease(release: GithubRelease): Promise<true | undefined>;
-    checkForUpdates: () => Promise<boolean | undefined>;
+    prepareUpdateFromRelease(release: GithubRelease): Promise<void>;
+    checkForUpdates: () => Promise<void>;
     quitAndInstall: () => void;
     destroy: () => void;
 }

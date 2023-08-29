@@ -431,6 +431,7 @@ class ElectronGithubAutoUpdater extends EventEmitter {
 
   async prepareUpdateFromRelease(release: GithubRelease) {
     try {
+      this.latestRelease = release
       const updateDetails = {
         releaseName: release.name,
         releaseNotes: release.body || '',
@@ -453,18 +454,13 @@ class ElectronGithubAutoUpdater extends EventEmitter {
         this._loadElectronAutoUpdater()
         // Use the built in electron auto updater to install the update
         this._installDownloadedUpdate()
-        return true
-      } else {
-        if (electronAutoUpdater.getFeedURL() === this.platformConfig.feedUrl) {
-          this.emit('update-downloaded', updateDetails)
-        } else {
-          // Load the built in electron auto updater with the files we generated
-          this._loadElectronAutoUpdater()
-          // Use the built in electron auto updater to install the update
-          this._installDownloadedUpdate()
-          return true
-        }
+      } else if (electronAutoUpdater.getFeedURL() !== this.platformConfig.feedUrl) {
+        // Load the built in electron auto updater with the files we generated
+        this._loadElectronAutoUpdater()
+        // Use the built in electron auto updater to install the update
+        this._installDownloadedUpdate()
       }
+      this.emit('update-downloaded', updateDetails)
     } catch (error) {
       this._emitError(error)
     }
@@ -477,9 +473,8 @@ class ElectronGithubAutoUpdater extends EventEmitter {
       const latestVersion = latestRelease.tag_name
       if (semverGte(this.currentVersion, latestVersion)) {
         this.emit('update-not-available')
-        return false
       } else {
-        return this.prepareUpdateFromRelease(latestRelease)
+        this.prepareUpdateFromRelease(latestRelease)
       }
     } catch (error) {
       this._emitError(error)
