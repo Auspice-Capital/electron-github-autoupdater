@@ -313,7 +313,7 @@ var ElectronGithubAutoUpdater = /** @class */ (function (_super) {
                                     switch (_a.label) {
                                         case 0:
                                             assetName = asset.name;
-                                            rollbackVersion = (0, semver_1.inc)(this.currentVersion, 'prerelease', 'rollback');
+                                            rollbackVersion = (0, semver_1.inc)(this.currentVersion, 'prerelease', 'rollback', false);
                                             isRollback = (0, semver_1.gte)(this.currentVersion, release.tag_name);
                                             if (isRollback) {
                                                 if (rollbackVersion === null) {

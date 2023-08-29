@@ -340,7 +340,7 @@ class ElectronGithubAutoUpdater extends EventEmitter {
     const downloadFile = (asset: GithubReleaseAsset) => {
       return new Promise(async (resolve, reject) => {
         let assetName = asset.name
-        const rollbackVersion = semverInc(this.currentVersion, 'prerelease', 'rollback')
+        const rollbackVersion = semverInc(this.currentVersion, 'prerelease', 'rollback', false)
         const isRollback = semverGte(this.currentVersion, release.tag_name)
         if (isRollback) {
           if (rollbackVersion === null) {
