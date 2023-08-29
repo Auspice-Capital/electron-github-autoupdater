@@ -237,7 +237,7 @@ var ElectronGithubAutoUpdater = /** @class */ (function (_super) {
             });
         }); };
         // Preps the default electron autoUpdater to install the update
-        _this._loadElectronAutoUpdater = function (release) {
+        _this._loadElectronAutoUpdater = function () {
             if (!electron_is_dev_1.default) {
                 electron_1.autoUpdater.setFeedURL({ url: _this.platformConfig.feedUrl });
             }
@@ -307,12 +307,21 @@ var ElectronGithubAutoUpdater = /** @class */ (function (_super) {
                         lastEmitPercent = -1;
                         downloadFile = function (asset) {
                             return new Promise(function (resolve, reject) { return __awaiter(_this, void 0, void 0, function () {
-                                var outputPath, assetUrl, data, writer;
+                                var assetName, rollbackVersion, isRollback, outputPath, assetUrl, data, writer;
                                 var _this = this;
                                 return __generator(this, function (_a) {
                                     switch (_a.label) {
                                         case 0:
-                                            outputPath = path_1.default.join(this.downloadsDirectory, asset.name);
+                                            assetName = asset.name;
+                                            rollbackVersion = (0, semver_1.inc)(this.currentVersion, 'prerelease', 'rollback');
+                                            isRollback = (0, semver_1.gte)(this.currentVersion, release.tag_name);
+                                            if (isRollback) {
+                                                if (rollbackVersion === null) {
+                                                    return [2 /*return*/, reject('Could not calculate rollback version')];
+                                                }
+                                                assetName = asset.name.replace(release.tag_name, rollbackVersion);
+                                            }
+                                            outputPath = path_1.default.join(this.downloadsDirectory, assetName);
                                             assetUrl = "".concat(this.baseUrl, "/repos/").concat(this.owner, "/").concat(this.repo, "/releases/assets/").concat(asset.id);
                                             return [4 /*yield*/, axios_1.default.get(assetUrl, {
                                                     headers: __assign(__assign({}, this._headers), { Accept: 'application/octet-stream' }),
@@ -344,7 +353,17 @@ var ElectronGithubAutoUpdater = /** @class */ (function (_super) {
                                             // Pipe data into a writer to save it to the disk rather than keeping it in memory
                                             data.pipe(writer);
                                             data.on('end', function () {
-                                                resolve(true);
+                                                writer.close(function () {
+                                                    if (isRollback && assetName === 'RELEASES') {
+                                                        if (rollbackVersion === null) {
+                                                            return reject('Could not calculate rollback version');
+                                                        }
+                                                        var releases = fs_1.default.readFileSync(outputPath, { encoding: 'utf-8' });
+                                                        var newReleases = releases.replace(release.tag_name, rollbackVersion);
+                                                        fs_1.default.writeFileSync(outputPath, newReleases, { encoding: 'utf-8' });
+                                                    }
+                                                    resolve(true);
+                                                });
                                             });
                                             return [2 /*return*/];
                                     }
@@ -536,7 +555,7 @@ var ElectronGithubAutoUpdater = /** @class */ (function (_super) {
                         // Download the update files
                         _a.sent();
                         // Load the built in electron auto updater with the files we generated
-                        this._loadElectronAutoUpdater(release);
+                        this._loadElectronAutoUpdater();
                         // Use the built in electron auto updater to install the update
                         this._installDownloadedUpdate();
                         return [2 /*return*/, true];
@@ -546,7 +565,7 @@ var ElectronGithubAutoUpdater = /** @class */ (function (_super) {
                         }
                         else {
                             // Load the built in electron auto updater with the files we generated
-                            this._loadElectronAutoUpdater(release);
+                            this._loadElectronAutoUpdater();
                             // Use the built in electron auto updater to install the update
                             this._installDownloadedUpdate();
                             return [2 /*return*/, true];

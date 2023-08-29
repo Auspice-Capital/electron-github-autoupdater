@@ -5,7 +5,7 @@ import EventEmitter from 'events'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { gte as semverGte, rcompare as semverCompare } from 'semver'
+import { gte as semverGte, rcompare as semverCompare, inc as semverInc } from 'semver'
 import { GithubRelease, GithubReleaseAsset } from './types'
 
 // Platform validation
@@ -268,7 +268,7 @@ class ElectronGithubAutoUpdater extends EventEmitter {
   }
 
   // Preps the default electron autoUpdater to install the update
-  _loadElectronAutoUpdater = (release: GithubRelease) => {
+  _loadElectronAutoUpdater = () => {
     if (!isDev) {
       electronAutoUpdater.setFeedURL({ url: this.platformConfig.feedUrl })
     }
@@ -339,7 +339,16 @@ class ElectronGithubAutoUpdater extends EventEmitter {
 
     const downloadFile = (asset: GithubReleaseAsset) => {
       return new Promise(async (resolve, reject) => {
-        const outputPath = path.join(this.downloadsDirectory, asset.name)
+        let assetName = asset.name
+        const rollbackVersion = semverInc(this.currentVersion, 'prerelease', 'rollback')
+        const isRollback = semverGte(this.currentVersion, release.tag_name)
+        if (isRollback) {
+          if (rollbackVersion === null) {
+            return reject('Could not calculate rollback version')
+          }
+          assetName = asset.name.replace(release.tag_name, rollbackVersion)
+        }
+        const outputPath = path.join(this.downloadsDirectory, assetName)
         const assetUrl = `${this.baseUrl}/repos/${this.owner}/${this.repo}/releases/assets/${asset.id}`
 
         const { data } = await axios.get(assetUrl, {
@@ -379,7 +388,17 @@ class ElectronGithubAutoUpdater extends EventEmitter {
         data.pipe(writer)
 
         data.on('end', () => {
-          resolve(true)
+          writer.close(() => {
+            if (isRollback && assetName === 'RELEASES') {
+              if (rollbackVersion === null) {
+                return reject('Could not calculate rollback version')
+              }
+              const releases = fs.readFileSync(outputPath, { encoding: 'utf-8' })
+              const newReleases = releases.replace(release.tag_name, rollbackVersion)
+              fs.writeFileSync(outputPath, newReleases, { encoding: 'utf-8' })
+            }
+            resolve(true)
+          })
         })
       })
     }
@@ -431,7 +450,7 @@ class ElectronGithubAutoUpdater extends EventEmitter {
         await this._downloadUpdateFromRelease(release)
 
         // Load the built in electron auto updater with the files we generated
-        this._loadElectronAutoUpdater(release)
+        this._loadElectronAutoUpdater()
         // Use the built in electron auto updater to install the update
         this._installDownloadedUpdate()
         return true
@@ -440,7 +459,7 @@ class ElectronGithubAutoUpdater extends EventEmitter {
           this.emit('update-downloaded', updateDetails)
         } else {
           // Load the built in electron auto updater with the files we generated
-          this._loadElectronAutoUpdater(release)
+          this._loadElectronAutoUpdater()
           // Use the built in electron auto updater to install the update
           this._installDownloadedUpdate()
           return true

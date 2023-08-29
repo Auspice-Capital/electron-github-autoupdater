@@ -59,7 +59,7 @@ declare class ElectronGithubAutoUpdater extends EventEmitter {
      */
     getReleases(): Promise<GithubRelease[]>;
     getLatestRelease: () => Promise<GithubRelease>;
-    _loadElectronAutoUpdater: (release: GithubRelease) => void;
+    _loadElectronAutoUpdater: () => void;
     _installDownloadedUpdate: () => void;
     emit: (e: AutoUpdaterEventType, args?: any) => boolean;
     /**
