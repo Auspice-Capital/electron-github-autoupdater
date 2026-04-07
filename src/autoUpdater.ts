@@ -1,12 +1,65 @@
-import axios from 'axios'
-import { app, autoUpdater as electronAutoUpdater, BrowserWindow, ipcMain } from 'electron'
-import isDev from 'electron-is-dev'
 import EventEmitter from 'events'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
+import { Readable } from 'stream'
+
+import { app, autoUpdater as electronAutoUpdater, BrowserWindow, ipcMain } from 'electron'
+import isDev from 'electron-is-dev'
 import { gte as semverGte, rcompare as semverCompare, inc as semverInc } from 'semver'
+
 import { GithubRelease, GithubReleaseAsset } from './types'
+
+type FetchRequestInit = {
+  headers?: Record<string, string>
+}
+
+type FetchResponseLike = {
+  ok: boolean
+  status: number
+  statusText: string
+  json: () => Promise<any>
+  body: any
+}
+
+const getNodeFetch = () => {
+  const nodeFetch = (globalThis as any).fetch
+  if (typeof nodeFetch !== 'function') {
+    throw new Error('Global fetch is not available in this version of Node.js')
+  }
+  return nodeFetch as (input: string, init?: FetchRequestInit) => Promise<FetchResponseLike>
+}
+
+const fetchJson = async <T>(url: string, init?: FetchRequestInit): Promise<T> => {
+  const response = await getNodeFetch()(url, init)
+  if (!response.ok) {
+    throw new Error(`GitHub request failed with status ${response.status} ${response.statusText}`)
+  }
+  return (await response.json()) as T
+}
+
+const fetchStream = async (url: string, init?: FetchRequestInit): Promise<NodeJS.ReadableStream> => {
+  const response = await getNodeFetch()(url, init)
+  if (!response.ok) {
+    throw new Error(`GitHub request failed with status ${response.status} ${response.statusText}`)
+  }
+
+  const body = response.body
+  if (!body) {
+    throw new Error('GitHub asset response did not include a body')
+  }
+
+  if (typeof body.on === 'function') {
+    return body as NodeJS.ReadableStream
+  }
+
+  const readableFromWeb = (Readable as any).fromWeb
+  if (typeof readableFromWeb !== 'function') {
+    throw new Error('Readable.fromWeb is not available in this version of Node.js')
+  }
+
+  return readableFromWeb(body) as NodeJS.ReadableStream
+}
 
 // Platform validation
 const supportedPlatforms = ['darwin', 'win32', 'linux'] as const
@@ -223,7 +276,7 @@ class ElectronGithubAutoUpdater extends EventEmitter {
    * Gets all releases from github sorted by version number (most recent first)
    */
   async getReleases(): Promise<GithubRelease[]> {
-    const response = await axios.get(
+    const releasesResponse = await fetchJson<GithubRelease[]>(
       `${this.baseUrl}/repos/${this.owner}/${this.repo}/releases?per_page=100`,
       {
         headers: this._headers,
@@ -239,7 +292,7 @@ class ElectronGithubAutoUpdater extends EventEmitter {
       }
     }
 
-    const releases: GithubRelease[] = response.data.filter(
+    const releases: GithubRelease[] = releasesResponse.filter(
       (release: GithubRelease) =>
         !release.draft && (this.allowPrerelease || !release.prerelease) && validateAssets(release)
     )
@@ -351,12 +404,11 @@ class ElectronGithubAutoUpdater extends EventEmitter {
         const outputPath = path.join(this.downloadsDirectory, assetName)
         const assetUrl = `${this.baseUrl}/repos/${this.owner}/${this.repo}/releases/assets/${asset.id}`
 
-        const { data } = await axios.get(assetUrl, {
+        const data = await fetchStream(assetUrl, {
           headers: {
             ...this._headers,
             Accept: 'application/octet-stream',
           },
-          responseType: 'stream',
         })
 
         const writer = fs.createWriteStream(outputPath)
