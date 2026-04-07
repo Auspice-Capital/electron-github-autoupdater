@@ -82,14 +82,61 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.autoUpdater = exports.channelName = void 0;
-var axios_1 = __importDefault(require("axios"));
-var electron_1 = require("electron");
-var electron_is_dev_1 = __importDefault(require("electron-is-dev"));
 var events_1 = __importDefault(require("events"));
 var fs_1 = __importDefault(require("fs"));
 var os_1 = __importDefault(require("os"));
 var path_1 = __importDefault(require("path"));
+var stream_1 = require("stream");
+var electron_1 = require("electron");
+var electron_is_dev_1 = __importDefault(require("electron-is-dev"));
 var semver_1 = require("semver");
+var getNodeFetch = function () {
+    var nodeFetch = globalThis.fetch;
+    if (typeof nodeFetch !== 'function') {
+        throw new Error('Global fetch is not available in this version of Node.js');
+    }
+    return nodeFetch;
+};
+var fetchJson = function (url, init) { return __awaiter(void 0, void 0, void 0, function () {
+    var response;
+    return __generator(this, function (_a) {
+        switch (_a.label) {
+            case 0: return [4 /*yield*/, getNodeFetch()(url, init)];
+            case 1:
+                response = _a.sent();
+                if (!response.ok) {
+                    throw new Error("GitHub request failed with status ".concat(response.status, " ").concat(response.statusText));
+                }
+                return [4 /*yield*/, response.json()];
+            case 2: return [2 /*return*/, (_a.sent())];
+        }
+    });
+}); };
+var fetchStream = function (url, init) { return __awaiter(void 0, void 0, void 0, function () {
+    var response, body, readableFromWeb;
+    return __generator(this, function (_a) {
+        switch (_a.label) {
+            case 0: return [4 /*yield*/, getNodeFetch()(url, init)];
+            case 1:
+                response = _a.sent();
+                if (!response.ok) {
+                    throw new Error("GitHub request failed with status ".concat(response.status, " ").concat(response.statusText));
+                }
+                body = response.body;
+                if (!body) {
+                    throw new Error('GitHub asset response did not include a body');
+                }
+                if (typeof body.on === 'function') {
+                    return [2 /*return*/, body];
+                }
+                readableFromWeb = stream_1.Readable.fromWeb;
+                if (typeof readableFromWeb !== 'function') {
+                    throw new Error('Readable.fromWeb is not available in this version of Node.js');
+                }
+                return [2 /*return*/, readableFromWeb(body)];
+        }
+    });
+}); };
 // Platform validation
 var supportedPlatforms = ['darwin', 'win32', 'linux'];
 function assertPlatform(platform) {
@@ -323,12 +370,11 @@ var ElectronGithubAutoUpdater = /** @class */ (function (_super) {
                                             }
                                             outputPath = path_1.default.join(this.downloadsDirectory, assetName);
                                             assetUrl = "".concat(this.baseUrl, "/repos/").concat(this.owner, "/").concat(this.repo, "/releases/assets/").concat(asset.id);
-                                            return [4 /*yield*/, axios_1.default.get(assetUrl, {
+                                            return [4 /*yield*/, fetchStream(assetUrl, {
                                                     headers: __assign(__assign({}, this._headers), { Accept: 'application/octet-stream' }),
-                                                    responseType: 'stream',
                                                 })];
                                         case 1:
-                                            data = (_a.sent()).data;
+                                            data = _a.sent();
                                             writer = fs_1.default.createWriteStream(outputPath);
                                             // Emit a progress event when a chunk is downloaded
                                             data.on('data', function (chunk) {
@@ -501,15 +547,15 @@ var ElectronGithubAutoUpdater = /** @class */ (function (_super) {
      */
     ElectronGithubAutoUpdater.prototype.getReleases = function () {
         return __awaiter(this, void 0, void 0, function () {
-            var response, validateAssets, releases;
+            var releasesResponse, validateAssets, releases;
             var _this = this;
             return __generator(this, function (_a) {
                 switch (_a.label) {
-                    case 0: return [4 /*yield*/, axios_1.default.get("".concat(this.baseUrl, "/repos/").concat(this.owner, "/").concat(this.repo, "/releases?per_page=100"), {
+                    case 0: return [4 /*yield*/, fetchJson("".concat(this.baseUrl, "/repos/").concat(this.owner, "/").concat(this.repo, "/releases?per_page=100"), {
                             headers: this._headers,
                         })];
                     case 1:
-                        response = _a.sent();
+                        releasesResponse = _a.sent();
                         validateAssets = function (release) {
                             try {
                                 _this._getAssets(release);
@@ -519,7 +565,7 @@ var ElectronGithubAutoUpdater = /** @class */ (function (_super) {
                                 return false;
                             }
                         };
-                        releases = response.data.filter(function (release) {
+                        releases = releasesResponse.filter(function (release) {
                             return !release.draft && (_this.allowPrerelease || !release.prerelease) && validateAssets(release);
                         });
                         releases.sort(function (a, b) { return (0, semver_1.rcompare)(a.name, b.name); });
