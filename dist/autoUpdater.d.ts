@@ -1,5 +1,8 @@
 import EventEmitter from 'events';
+import { request } from '@octokit/request';
 import { GithubRelease, GithubReleaseAsset } from './types.ts';
+type OctokitRequest = typeof request;
+type OctokitRequestWithDefaults = ReturnType<OctokitRequest['defaults']>;
 declare const supportedPlatforms: readonly ['darwin', 'win32', 'linux'];
 export declare const channelName = "ElectronAutoUpdater";
 declare const electronAutoUpdaterEventTypes: readonly ['error', 'checking-for-update', 'update-available', 'update-not-available', 'update-downloaded', 'before-quit-for-update'];
@@ -39,6 +42,7 @@ declare class ElectronGithubAutoUpdater extends EventEmitter {
     platform: (typeof supportedPlatforms)[number];
     platformConfig: PlatformConfig;
     _headers: Record<string, string>;
+    _request: OctokitRequestWithDefaults;
     latestRelease: GithubRelease | null;
     constructor({ baseUrl, owner, repo, accessToken, allowPrerelease, shouldForwardEvents, cacheFilePath, downloadsDirectory }: AutoUpdaterOptions);
     /**************************************************************************************************

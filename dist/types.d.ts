@@ -7,16 +7,16 @@ export interface GithubRelease {
     node_id: string;
     tag_name: string;
     target_commitish: string;
-    name: string;
+    name: string | null;
     draft: boolean;
     author: GithubReleaseAssetAuthor;
     prerelease: boolean;
     created_at: string;
-    published_at: string;
+    published_at: string | null;
     assets: GithubReleaseAsset[];
-    tarball_url: string;
-    zipball_url: string;
-    body: string;
+    tarball_url: string | null;
+    zipball_url: string | null;
+    body?: string | null;
 }
 export interface GithubReleaseAsset {
     url: string;
@@ -24,7 +24,7 @@ export interface GithubReleaseAsset {
     node_id: string;
     name: string;
     label?: any;
-    uploader: GithubReleaseAssetAuthor;
+    uploader: GithubReleaseAssetAuthor | null;
     content_type: string;
     state: string;
     size: number;
@@ -38,7 +38,7 @@ export interface GithubReleaseAssetAuthor {
     id: number;
     node_id: string;
     avatar_url: string;
-    gravatar_id: string;
+    gravatar_id: string | null;
     url: string;
     html_url: string;
     followers_url: string;

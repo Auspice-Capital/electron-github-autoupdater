@@ -2,42 +2,11 @@ import EventEmitter from 'events';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { Readable } from 'stream';
+import { pipeline } from 'node:stream/promises';
 import { app, autoUpdater as electronAutoUpdater, BrowserWindow, ipcMain } from 'electron';
 import isDev from 'electron-is-dev';
 import { gte as semverGte, rcompare as semverCompare, inc as semverInc } from 'semver';
-const getNodeFetch = () => {
-    const nodeFetch = globalThis.fetch;
-    if (typeof nodeFetch !== 'function') {
-        throw new Error('Global fetch is not available in this version of Node.js');
-    }
-    return nodeFetch;
-};
-const fetchJson = async (url, init) => {
-    const response = await getNodeFetch()(url, init);
-    if (!response.ok) {
-        throw new Error(`GitHub request failed with status ${response.status} ${response.statusText}`);
-    }
-    return (await response.json());
-};
-const fetchStream = async (url, init) => {
-    const response = await getNodeFetch()(url, init);
-    if (!response.ok) {
-        throw new Error(`GitHub request failed with status ${response.status} ${response.statusText}`);
-    }
-    const body = response.body;
-    if (!body) {
-        throw new Error('GitHub asset response did not include a body');
-    }
-    if (typeof body.on === 'function') {
-        return body;
-    }
-    const readableFromWeb = Readable.fromWeb;
-    if (typeof readableFromWeb !== 'function') {
-        throw new Error('Readable.fromWeb is not available in this version of Node.js');
-    }
-    return readableFromWeb(body);
-};
+import { request } from '@octokit/request';
 // Platform validation
 const supportedPlatforms = ['darwin', 'win32', 'linux'];
 function assertPlatform(platform) {
@@ -80,6 +49,7 @@ class ElectronGithubAutoUpdater extends EventEmitter {
     platform;
     platformConfig;
     _headers;
+    _request;
     latestRelease;
     constructor({ baseUrl = 'https://api.github.com', owner, repo, accessToken, allowPrerelease = false, shouldForwardEvents = true, cacheFilePath = path.join(app.getPath('temp'), app.getName(), 'updates', '.cache'), downloadsDirectory = path.join(app.getPath('temp'), app.getName(), 'updates', 'downloads'), }) {
         super();
@@ -97,7 +67,13 @@ class ElectronGithubAutoUpdater extends EventEmitter {
         this.lastEmit = { type: 'update-not-available', args: [] };
         this.latestRelease = null;
         // Github request headers
-        this._headers = { Authorization: `token ${this.accessToken}` };
+        this._headers = {
+            authorization: `Bearer ${this.accessToken}`,
+        };
+        this._request = request.defaults({
+            baseUrl: this.baseUrl,
+            headers: this._headers,
+        });
         // TS validate platform
         assertPlatform(platform);
         this.platform = platform;
@@ -201,8 +177,11 @@ class ElectronGithubAutoUpdater extends EventEmitter {
      * Gets all releases from github sorted by version number (most recent first)
      */
     async getReleases() {
-        const releasesResponse = await fetchJson(`${this.baseUrl}/repos/${this.owner}/${this.repo}/releases?per_page=100`, {
-            headers: this._headers,
+        const request = await this._request;
+        const releasesResponse = await request('GET /repos/{owner}/{repo}/releases', {
+            owner: this.owner,
+            repo: this.repo,
+            per_page: 100,
         });
         const validateAssets = (release) => {
             try {
@@ -213,7 +192,7 @@ class ElectronGithubAutoUpdater extends EventEmitter {
                 return false;
             }
         };
-        const releases = releasesResponse.filter((release) => !release.draft && (this.allowPrerelease || !release.prerelease) && validateAssets(release));
+        const releases = releasesResponse.data.filter((release) => !release.draft && (this.allowPrerelease || !release.prerelease) && validateAssets(release));
         releases.sort((a, b) => semverCompare(a.name, b.name));
         return releases;
     }
@@ -297,64 +276,83 @@ class ElectronGithubAutoUpdater extends EventEmitter {
         const totalSize = assets.reduce((prev, asset) => (prev += asset.size), 0);
         let downloaded = 0;
         let lastEmitPercent = -1;
-        const downloadFile = (asset) => {
-            return new Promise(async (resolve, reject) => {
-                let assetName = asset.name;
-                const rollbackVersion = semverInc(this.currentVersion, 'prerelease', 'rollback', false);
-                const isRollback = semverGte(this.currentVersion, release.tag_name);
-                if (isRollback) {
-                    if (rollbackVersion === null) {
-                        return reject('Could not calculate rollback version');
-                    }
-                    assetName = asset.name.replace(release.tag_name, rollbackVersion);
+        const downloadFile = async (asset) => {
+            let assetName = asset.name;
+            // I believe this is a hack where we download an older version, but
+            // give it a new name which is the next prerelease version with
+            // "rollback" identifier, necessary to keep the version numbers moving
+            // forward
+            const rollbackVersion = semverInc(this.currentVersion, 'prerelease', 'rollback', false);
+            const isRollback = semverGte(this.currentVersion, release.tag_name);
+            if (isRollback) {
+                if (rollbackVersion === null) {
+                    throw new Error('Could not calculate rollback version');
                 }
-                const outputPath = path.join(this.downloadsDirectory, assetName);
-                const assetUrl = `${this.baseUrl}/repos/${this.owner}/${this.repo}/releases/assets/${asset.id}`;
-                const data = await fetchStream(assetUrl, {
-                    headers: {
-                        ...this._headers,
-                        Accept: 'application/octet-stream',
+                assetName = asset.name.replace(release.tag_name, rollbackVersion);
+            }
+            const outputPath = path.join(this.downloadsDirectory, assetName);
+            const request = await this._request;
+            const response = await request('GET /repos/{owner}/{repo}/releases/assets/{asset_id}', {
+                owner: this.owner,
+                repo: this.repo,
+                asset_id: asset.id,
+                request: {
+                    // See https://github.com/octokit/request.js/issues/601
+                    parseSuccessResponseBody: false,
+                },
+                headers: {
+                    accept: 'application/octet-stream',
+                },
+            });
+            // The types break down for streaming data with octokit, see
+            // https://github.com/octokit/types.ts/issues/606
+            const data = response.data;
+            const writer = fs.createWriteStream(outputPath);
+            // Keep this arrow function outside of the generator to make sure we're
+            // using the right `this`
+            const emit = () => {
+                this.emit('update-downloading', {
+                    downloadStatus: {
+                        size: totalSize,
+                        progress: downloaded,
+                        percent: Math.round((downloaded * 100) / totalSize),
                     },
+                    releaseName: release.name,
+                    releaseNotes: release.body || '',
+                    releaseDate: new Date(release.published_at),
+                    updateUrl: release.html_url,
                 });
-                const writer = fs.createWriteStream(outputPath);
-                // Emit a progress event when a chunk is downloaded
-                data.on('data', (chunk) => {
+            };
+            // Pipe data into a writer to save it to the disk rather than keeping it in memory
+            await pipeline(data, 
+            // Emit progress events when chunks are downloaded
+            async function* (source) {
+                for await (const chunk of source) {
+                    yield chunk;
                     downloaded += chunk.length;
                     const percent = Math.round((downloaded * 100) / totalSize);
                     // Only emit once the value is greater, to prevent TONS of IPC events
                     if (percent > lastEmitPercent) {
-                        this.emit('update-downloading', {
-                            downloadStatus: {
-                                size: totalSize,
-                                progress: downloaded,
-                                percent: Math.round((downloaded * 100) / totalSize),
-                            },
-                            releaseName: release.name,
-                            releaseNotes: release.body || '',
-                            releaseDate: new Date(release.published_at),
-                            updateUrl: release.html_url,
-                        });
+                        emit();
                         lastEmitPercent = percent;
                     }
-                });
-                // Pipe data into a writer to save it to the disk rather than keeping it in memory
-                data.pipe(writer);
-                data.on('end', () => {
-                    writer.close(() => {
-                        if (isRollback && assetName === 'RELEASES') {
-                            if (rollbackVersion === null) {
-                                return reject('Could not calculate rollback version');
-                            }
-                            const releases = fs.readFileSync(outputPath, { encoding: 'utf-8' });
-                            const newReleases = releases.replace(release.tag_name, rollbackVersion);
-                            fs.writeFileSync(outputPath, newReleases, { encoding: 'utf-8' });
-                        }
-                        resolve(true);
-                    });
-                });
+                }
+            }, writer, {
+                // Close the file write stream when done
+                end: true,
             });
+            // To rollback we pretend like this release is ahead of the current
+            // release
+            if (isRollback && assetName === 'RELEASES') {
+                if (rollbackVersion === null) {
+                    throw new Error('Could not calculate rollback version');
+                }
+                const releases = fs.readFileSync(outputPath, { encoding: 'utf-8' });
+                const newReleases = releases.replace(release.tag_name, rollbackVersion);
+                fs.writeFileSync(outputPath, newReleases, { encoding: 'utf-8' });
+            }
         };
-        for await (const asset of assets) {
+        for (const asset of assets) {
             await downloadFile(asset);
         }
         fs.writeFileSync(this.cacheFilePath, release.id.toString(), { encoding: 'utf-8' });
