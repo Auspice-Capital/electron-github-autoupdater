@@ -8,7 +8,7 @@ import { app, autoUpdater as electronAutoUpdater, BrowserWindow, ipcMain } from 
 import isDev from 'electron-is-dev'
 import { gte as semverGte, rcompare as semverCompare, inc as semverInc } from 'semver'
 
-import { GithubRelease, GithubReleaseAsset } from './types'
+import { GithubRelease, GithubReleaseAsset } from './types.ts'
 
 type FetchRequestInit = {
   headers?: Record<string, string>

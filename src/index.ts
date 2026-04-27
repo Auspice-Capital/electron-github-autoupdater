@@ -1,2 +1,2 @@
-export * from './autoUpdater'
-export * from './types'
+export * from './autoUpdater.ts'
+export * from './types.ts'

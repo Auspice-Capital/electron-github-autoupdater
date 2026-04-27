@@ -1,25 +1,23 @@
 {
-    "compilerOptions": {
-        "target": "es5",
-        "module": "commonjs",
-        "declaration": true,
-        "outDir": "dist",
-        "allowJs": true,
-        "skipLibCheck": true,
-        "esModuleInterop": true,
-        "allowSyntheticDefaultImports": true,
-        "strict": true,
-        "forceConsistentCasingInFileNames": true,
-        "noFallthroughCasesInSwitch": true,
-        "moduleResolution": "node",
-        "resolveJsonModule": true,
-        "jsx": "react-jsx"
-    },
-    "include": [
-        "src",
-        "src/**/*.ts",
-    ],
-    "exclude": [
-        "node_modules"
-    ],
+  "compilerOptions": {
+    "declaration": true,
+    "rootDir": "src",
+    "outDir": "dist",
+    "allowJs": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noFallthroughCasesInSwitch": true,
+    "resolveJsonModule": true,
+    "jsx": "react-jsx",
+    "target": "esnext",
+    "module": "nodenext",
+    "rewriteRelativeImportExtensions": true,
+    "erasableSyntaxOnly": true
+  },
+  "include": ["src", "src/**/*.ts"],
+  "exclude": ["node_modules"],
+  "types": ["node"]
 }
