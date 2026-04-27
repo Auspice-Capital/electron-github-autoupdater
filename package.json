@@ -10,7 +10,8 @@
   ],
   "scripts": {
     "build": "tsgo --build",
-    "clean": "tsgo --build --clean"
+    "clean": "tsgo --build --clean",
+    "format": "prettier --write ."
   },
   "repository": "https://github.com/christianblandford/electron-github-autoupdater",
   "author": "Christian Blandford",
