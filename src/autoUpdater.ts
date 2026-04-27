@@ -38,7 +38,10 @@ const fetchJson = async <T>(url: string, init?: FetchRequestInit): Promise<T> =>
   return (await response.json()) as T
 }
 
-const fetchStream = async (url: string, init?: FetchRequestInit): Promise<NodeJS.ReadableStream> => {
+const fetchStream = async (
+  url: string,
+  init?: FetchRequestInit
+): Promise<NodeJS.ReadableStream> => {
   const response = await getNodeFetch()(url, init)
   if (!response.ok) {
     throw new Error(`GitHub request failed with status ${response.status} ${response.statusText}`)
@@ -63,7 +66,7 @@ const fetchStream = async (url: string, init?: FetchRequestInit): Promise<NodeJS
 
 // Platform validation
 const supportedPlatforms = ['darwin', 'win32', 'linux'] as const
-type SupportedPlatformType = typeof supportedPlatforms[number]
+type SupportedPlatformType = (typeof supportedPlatforms)[number]
 function assertPlatform(platform: any): asserts platform is SupportedPlatformType {
   if (!supportedPlatforms.includes(platform)) {
     throw new TypeError(`${platform} is not a supported platform`)
@@ -90,7 +93,7 @@ const electronAutoUpdaterEventTypes = [
   'update-downloaded',
   'before-quit-for-update',
 ] as const
-export type ElectronAutoUpdaterEventType = typeof electronAutoUpdaterEventTypes[number]
+export type ElectronAutoUpdaterEventType = (typeof electronAutoUpdaterEventTypes)[number]
 
 // Custom event types for this library
 const eventTypes = [...electronAutoUpdaterEventTypes, 'update-downloading']
@@ -130,7 +133,7 @@ class ElectronGithubAutoUpdater extends EventEmitter {
   downloadsDirectory: string
   eventTypes: string[]
   lastEmit: LastEmit
-  platform: typeof supportedPlatforms[number]
+  platform: (typeof supportedPlatforms)[number]
   platformConfig: PlatformConfig
   _headers: Record<string, string>
   latestRelease: GithubRelease | null
