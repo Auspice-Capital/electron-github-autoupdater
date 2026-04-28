@@ -13,7 +13,7 @@
     "resolveJsonModule": true,
     "jsx": "react-jsx",
     "target": "esnext",
-    "module": "nodenext",
+    "module": "commonjs",
     "rewriteRelativeImportExtensions": true,
     "erasableSyntaxOnly": true
   },

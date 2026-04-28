@@ -1,12 +1,18 @@
-import EventEmitter from 'events';
-import fs from 'fs';
-import os from 'os';
-import path from 'path';
-import { pipeline } from 'node:stream/promises';
-import { app, autoUpdater as electronAutoUpdater, BrowserWindow, ipcMain } from 'electron';
-import isDev from 'electron-is-dev';
-import { gte as semverGte, rcompare as semverCompare, inc as semverInc } from 'semver';
-import { request } from '@octokit/request';
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.autoUpdater = exports.channelName = void 0;
+const events_1 = __importDefault(require("events"));
+const fs_1 = __importDefault(require("fs"));
+const os_1 = __importDefault(require("os"));
+const path_1 = __importDefault(require("path"));
+const promises_1 = require("node:stream/promises");
+const electron_1 = require("electron");
+const electron_is_dev_1 = __importDefault(require("electron-is-dev"));
+const semver_1 = require("semver");
+const request_1 = require("@octokit/request");
 // Platform validation
 const supportedPlatforms = ['darwin', 'win32', 'linux'];
 function assertPlatform(platform) {
@@ -14,14 +20,14 @@ function assertPlatform(platform) {
         throw new TypeError(`${platform} is not a supported platform`);
     }
 }
-const platform = os.platform();
+const platform = os_1.default.platform();
 if (platform === 'linux') {
     console.warn('WARNING: Linux is only enabled in electron-github-autoupdater for development purposes, updating does not work on linux');
 }
 assertPlatform(platform);
 if (!supportedPlatforms.includes(platform))
     throw new Error(`Platform: ${platform} is not currently supported by electron-github-autoupdater`);
-export const channelName = 'ElectronAutoUpdater';
+exports.channelName = 'ElectronAutoUpdater';
 // Default event types from electron's autoUpdater
 const electronAutoUpdaterEventTypes = [
     'error',
@@ -33,7 +39,7 @@ const electronAutoUpdaterEventTypes = [
 ];
 // Custom event types for this library
 const eventTypes = [...electronAutoUpdaterEventTypes, 'update-downloading'];
-class ElectronGithubAutoUpdater extends EventEmitter {
+class ElectronGithubAutoUpdater extends events_1.default {
     baseUrl;
     owner;
     repo;
@@ -51,7 +57,7 @@ class ElectronGithubAutoUpdater extends EventEmitter {
     _headers;
     _request;
     latestRelease;
-    constructor({ baseUrl = 'https://api.github.com', owner, repo, accessToken, allowPrerelease = false, shouldForwardEvents = true, cacheFilePath = path.join(app.getPath('temp'), app.getName(), 'updates', '.cache'), downloadsDirectory = path.join(app.getPath('temp'), app.getName(), 'updates', 'downloads'), }) {
+    constructor({ baseUrl = 'https://api.github.com', owner, repo, accessToken, allowPrerelease = false, shouldForwardEvents = true, cacheFilePath = path_1.default.join(electron_1.app.getPath('temp'), electron_1.app.getName(), 'updates', '.cache'), downloadsDirectory = path_1.default.join(electron_1.app.getPath('temp'), electron_1.app.getName(), 'updates', 'downloads'), }) {
         super();
         this.baseUrl = baseUrl;
         this.owner = owner;
@@ -59,8 +65,8 @@ class ElectronGithubAutoUpdater extends EventEmitter {
         this.accessToken = accessToken;
         this.allowPrerelease = allowPrerelease;
         this.shouldForwardEvents = shouldForwardEvents;
-        this.currentVersion = app.getVersion();
-        this.appName = app.getName();
+        this.currentVersion = electron_1.app.getVersion();
+        this.appName = electron_1.app.getName();
         this.cacheFilePath = cacheFilePath;
         this.downloadsDirectory = downloadsDirectory;
         this.eventTypes = eventTypes;
@@ -70,7 +76,7 @@ class ElectronGithubAutoUpdater extends EventEmitter {
         this._headers = {
             authorization: `Bearer ${this.accessToken}`,
         };
-        this._request = request.defaults({
+        this._request = request_1.request.defaults({
             baseUrl: this.baseUrl,
             headers: this._headers,
         });
@@ -91,7 +97,7 @@ class ElectronGithubAutoUpdater extends EventEmitter {
     // Adds listeners for IPC Events
     _registerIpcMethods = () => {
         if (this.shouldForwardEvents) {
-            ipcMain.on(channelName, (event, method, args) => {
+            electron_1.ipcMain.on(exports.channelName, (event, method, args) => {
                 switch (method) {
                     case 'getStatus':
                         event.returnValue = { eventName: this.lastEmit.type, eventDetails: this.lastEmit.args };
@@ -103,7 +109,7 @@ class ElectronGithubAutoUpdater extends EventEmitter {
                         throw new Error(`No listener for ${method}`);
                 }
             });
-            ipcMain.handle(channelName, async (event, method, args) => {
+            electron_1.ipcMain.handle(exports.channelName, async (event, method, args) => {
                 switch (method) {
                     case 'checkForUpdates':
                         return this.checkForUpdates();
@@ -130,13 +136,13 @@ class ElectronGithubAutoUpdater extends EventEmitter {
     }
     _initCache = () => {
         // Create temp dir if not exists
-        if (!fs.existsSync(this.downloadsDirectory))
-            fs.mkdirSync(this.downloadsDirectory, { recursive: true });
+        if (!fs_1.default.existsSync(this.downloadsDirectory))
+            fs_1.default.mkdirSync(this.downloadsDirectory, { recursive: true });
     };
     // Intercept electron's autoUpdater events and forward to renderer
     _registerInterceptors = () => {
-        electronAutoUpdater.on('before-quit-for-update', () => this.emit('before-quit-for-update'));
-        electronAutoUpdater.on('update-available', () => {
+        electron_1.autoUpdater.on('before-quit-for-update', () => this.emit('before-quit-for-update'));
+        electron_1.autoUpdater.on('update-available', () => {
             this.emit('update-downloaded', {
                 releaseName: this.latestRelease?.name,
                 releaseNotes: this.latestRelease?.body,
@@ -145,8 +151,8 @@ class ElectronGithubAutoUpdater extends EventEmitter {
                 prerelease: this.latestRelease?.prerelease,
             });
         });
-        electronAutoUpdater.on('error', (error) => this._emitError(error));
-        electronAutoUpdater.on('update-not-available', () => this.emit('update-not-available'));
+        electron_1.autoUpdater.on('error', (error) => this._emitError(error));
+        electron_1.autoUpdater.on('update-not-available', () => this.emit('update-not-available'));
     };
     // Gets the config for the current platform: files to download, the "feedURL" for electron's autoUpdater
     _getPlatformConfig = () => {
@@ -161,13 +167,13 @@ class ElectronGithubAutoUpdater extends EventEmitter {
             },
             darwin: {
                 requiredFiles: [/[^ ]*\.zip/gim, /feed.json/],
-                feedUrl: path.join(this.downloadsDirectory, 'feed.json'),
+                feedUrl: path_1.default.join(this.downloadsDirectory, 'feed.json'),
             },
         }[this.platform];
     };
     _getCachedReleaseId = () => {
-        if (fs.existsSync(this.cacheFilePath)) {
-            return parseInt(fs.readFileSync(this.cacheFilePath, { encoding: 'utf-8' }));
+        if (fs_1.default.existsSync(this.cacheFilePath)) {
+            return parseInt(fs_1.default.readFileSync(this.cacheFilePath, { encoding: 'utf-8' }));
         }
         else {
             return null;
@@ -193,7 +199,7 @@ class ElectronGithubAutoUpdater extends EventEmitter {
             }
         };
         const releases = releasesResponse.data.filter((release) => !release.draft && (this.allowPrerelease || !release.prerelease) && validateAssets(release));
-        releases.sort((a, b) => semverCompare(a.name, b.name));
+        releases.sort((a, b) => (0, semver_1.rcompare)(a.name, b.name));
         return releases;
     }
     // Gets the latest release from github
@@ -213,15 +219,15 @@ class ElectronGithubAutoUpdater extends EventEmitter {
     };
     // Preps the default electron autoUpdater to install the update
     _loadElectronAutoUpdater = () => {
-        if (!isDev) {
-            electronAutoUpdater.setFeedURL({ url: this.platformConfig.feedUrl });
+        if (!electron_is_dev_1.default) {
+            electron_1.autoUpdater.setFeedURL({ url: this.platformConfig.feedUrl });
         }
     };
     // Uses electron autoUpdater to install the downloaded update
     _installDownloadedUpdate = () => {
-        if (!isDev) {
+        if (!electron_is_dev_1.default) {
             try {
-                electronAutoUpdater.checkForUpdates();
+                electron_1.autoUpdater.checkForUpdates();
             }
             catch (e) {
                 this._emitError(e);
@@ -230,7 +236,7 @@ class ElectronGithubAutoUpdater extends EventEmitter {
         else {
             console.error('Cannot install an update while running in dev mode.');
             // Fake an install for testing purposes
-            electronAutoUpdater.emit('update-available');
+            electron_1.autoUpdater.emit('update-available');
         }
     };
     // Emit event, also optionally forward to renderer windows
@@ -240,8 +246,8 @@ class ElectronGithubAutoUpdater extends EventEmitter {
         this.lastEmit = { type: e, args: args };
         // Emit over IPC also
         if (this.shouldForwardEvents) {
-            BrowserWindow.getAllWindows().map((window) => {
-                window.webContents.send(channelName, { eventName: e, eventDetails: args });
+            electron_1.BrowserWindow.getAllWindows().map((window) => {
+                window.webContents.send(exports.channelName, { eventName: e, eventDetails: args });
             });
         }
         // Emit a regular event, for main process listeners
@@ -282,15 +288,15 @@ class ElectronGithubAutoUpdater extends EventEmitter {
             // give it a new name which is the next prerelease version with
             // "rollback" identifier, necessary to keep the version numbers moving
             // forward
-            const rollbackVersion = semverInc(this.currentVersion, 'prerelease', 'rollback', false);
-            const isRollback = semverGte(this.currentVersion, release.tag_name);
+            const rollbackVersion = (0, semver_1.inc)(this.currentVersion, 'prerelease', 'rollback', false);
+            const isRollback = (0, semver_1.gte)(this.currentVersion, release.tag_name);
             if (isRollback) {
                 if (rollbackVersion === null) {
                     throw new Error('Could not calculate rollback version');
                 }
                 assetName = asset.name.replace(release.tag_name, rollbackVersion);
             }
-            const outputPath = path.join(this.downloadsDirectory, assetName);
+            const outputPath = path_1.default.join(this.downloadsDirectory, assetName);
             const request = await this._request;
             const response = await request('GET /repos/{owner}/{repo}/releases/assets/{asset_id}', {
                 owner: this.owner,
@@ -307,7 +313,7 @@ class ElectronGithubAutoUpdater extends EventEmitter {
             // The types break down for streaming data with octokit, see
             // https://github.com/octokit/types.ts/issues/606
             const data = response.data;
-            const writer = fs.createWriteStream(outputPath);
+            const writer = fs_1.default.createWriteStream(outputPath);
             // Keep this arrow function outside of the generator to make sure we're
             // using the right `this`
             const emit = () => {
@@ -324,7 +330,7 @@ class ElectronGithubAutoUpdater extends EventEmitter {
                 });
             };
             // Pipe data into a writer to save it to the disk rather than keeping it in memory
-            await pipeline(data, 
+            await (0, promises_1.pipeline)(data, 
             // Emit progress events when chunks are downloaded
             async function* (source) {
                 for await (const chunk of source) {
@@ -347,26 +353,26 @@ class ElectronGithubAutoUpdater extends EventEmitter {
                 if (rollbackVersion === null) {
                     throw new Error('Could not calculate rollback version');
                 }
-                const releases = fs.readFileSync(outputPath, { encoding: 'utf-8' });
+                const releases = fs_1.default.readFileSync(outputPath, { encoding: 'utf-8' });
                 const newReleases = releases.replace(release.tag_name, rollbackVersion);
-                fs.writeFileSync(outputPath, newReleases, { encoding: 'utf-8' });
+                fs_1.default.writeFileSync(outputPath, newReleases, { encoding: 'utf-8' });
             }
         };
         for (const asset of assets) {
             await downloadFile(asset);
         }
-        fs.writeFileSync(this.cacheFilePath, release.id.toString(), { encoding: 'utf-8' });
+        fs_1.default.writeFileSync(this.cacheFilePath, release.id.toString(), { encoding: 'utf-8' });
     };
     // Clears the updates folder and cache file
     clearCache = () => {
         try {
             // Delete downloads dir if exists
-            if (fs.existsSync(this.downloadsDirectory)) {
-                fs.rmSync(this.downloadsDirectory, { recursive: true, force: true });
+            if (fs_1.default.existsSync(this.downloadsDirectory)) {
+                fs_1.default.rmSync(this.downloadsDirectory, { recursive: true, force: true });
             }
             // Delete cache file if exists
-            if (fs.existsSync(this.cacheFilePath)) {
-                fs.unlinkSync(this.cacheFilePath);
+            if (fs_1.default.existsSync(this.cacheFilePath)) {
+                fs_1.default.unlinkSync(this.cacheFilePath);
             }
             this._initCache();
         }
@@ -397,7 +403,7 @@ class ElectronGithubAutoUpdater extends EventEmitter {
                 // Use the built in electron auto updater to install the update
                 this._installDownloadedUpdate();
             }
-            else if (electronAutoUpdater.getFeedURL() !== this.platformConfig.feedUrl) {
+            else if (electron_1.autoUpdater.getFeedURL() !== this.platformConfig.feedUrl) {
                 // Load the built in electron auto updater with the files we generated
                 this._loadElectronAutoUpdater();
                 // Use the built in electron auto updater to install the update
@@ -414,7 +420,7 @@ class ElectronGithubAutoUpdater extends EventEmitter {
             // Get the latest release and its version number
             const latestRelease = await this.getLatestRelease();
             const latestVersion = latestRelease.tag_name;
-            if (semverGte(this.currentVersion, latestVersion)) {
+            if ((0, semver_1.gte)(this.currentVersion, latestVersion)) {
                 this.emit('update-not-available');
             }
             else {
@@ -427,7 +433,7 @@ class ElectronGithubAutoUpdater extends EventEmitter {
     };
     quitAndInstall = () => {
         try {
-            electronAutoUpdater.quitAndInstall();
+            electron_1.autoUpdater.quitAndInstall();
         }
         catch (e) {
             this._emitError(e);
@@ -435,11 +441,12 @@ class ElectronGithubAutoUpdater extends EventEmitter {
     };
     // Destroys all related IpcMain listeners
     destroy = () => {
-        ipcMain.removeHandler(channelName);
-        ipcMain.removeAllListeners(channelName);
+        electron_1.ipcMain.removeHandler(exports.channelName);
+        electron_1.ipcMain.removeAllListeners(exports.channelName);
     };
 }
 // Export function that returns new instance of the updater, to closer match electron's autoUpdater API
-export const autoUpdater = (config) => {
+const autoUpdater = (config) => {
     return new ElectronGithubAutoUpdater(config);
 };
+exports.autoUpdater = autoUpdater;
